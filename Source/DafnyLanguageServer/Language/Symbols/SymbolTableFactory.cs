@@ -12,9 +12,11 @@ using AstElement = System.Object;
 namespace Microsoft.Dafny.LanguageServer.Language.Symbols {
   public class SymbolTableFactory : ISymbolTableFactory {
     private readonly ILogger logger;
+    private readonly ILogger<SymbolTable> loggerSymbolTable;
 
-    public SymbolTableFactory(ILogger<SymbolTableFactory> logger) {
+    public SymbolTableFactory(ILogger<SymbolTableFactory> logger, ILogger<SymbolTable> loggerSymbolTable) {
       this.logger = logger;
+      this.loggerSymbolTable = loggerSymbolTable;
     }
 
     public SymbolTable CreateFrom(Dafny.Program program, CompilationUnit compilationUnit, CancellationToken cancellationToken) {
@@ -34,6 +36,7 @@ namespace Microsoft.Dafny.LanguageServer.Language.Symbols {
         logger.LogDebug("cannot create symbol table from a program with errors");
       }
       return new SymbolTable(
+        loggerSymbolTable,
         compilationUnit,
         declarations,
         declarationLocationVisitor.Locations,
@@ -224,8 +227,8 @@ namespace Microsoft.Dafny.LanguageServer.Language.Symbols {
           // abstract syntax tree). We just ignore such duplicates until more information is availabe in the AST.
           var range = token.GetLspRange();
           SymbolLookup.Add(range.Start, range.End, symbol);
-          if (designators.ContainsKey(node)) {
-            if (designators[node] != symbol) {
+          if (designators.TryGetValue(node, out var registeredSymbol)) {
+            if (registeredSymbol != symbol) {
               logger.LogInformation("Conflicting  symbol resolution nf designator named {Identifier} in {Filename}@({Line},{Column})",
                 identifier, token.GetDocumentFileName(), token.line, token.col);
             }
@@ -383,12 +386,12 @@ namespace Microsoft.Dafny.LanguageServer.Language.Symbols {
 
       public Unit Visit(ScopeSymbol scopeSymbol) {
         cancellationToken.ThrowIfCancellationRequested();
-        var endToken = scopeSymbol.EndTok;
+        var endToken = scopeSymbol.BodyEndToken;
         RegisterLocation(
           scopeSymbol,
-          scopeSymbol.Tok,
-          scopeSymbol.Tok.GetLspRange(),
-          new Range(scopeSymbol.Tok.GetLspPosition(), endToken.GetLspPosition())
+          scopeSymbol.BodyStartToken,
+          scopeSymbol.BodyStartToken.GetLspRange(),
+          new Range(scopeSymbol.BodyStartToken.GetLspPosition(), endToken.GetLspPosition())
         );
         VisitChildren(scopeSymbol);
         return Unit.Value;
@@ -400,8 +403,8 @@ namespace Microsoft.Dafny.LanguageServer.Language.Symbols {
         }
       }
 
-      private void RegisterLocation(ISymbol symbol, IToken? token, Range name, Range declaration) {
-        if (token?.filename != null) {
+      private void RegisterLocation(ISymbol symbol, IToken token, Range name, Range declaration) {
+        if (token.filename != null) {
           // The filename is null if we have a default or System based symbol. This is also reflected by the ranges being usually -1.
           Locations.Add(symbol, new SymbolLocation(token.GetDocumentUri(), name, declaration));
         }

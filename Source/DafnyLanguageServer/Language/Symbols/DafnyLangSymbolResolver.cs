@@ -162,33 +162,33 @@ namespace Microsoft.Dafny.LanguageServer.Language.Symbols {
             ? null
             : ProcessExpression(new ScopeSymbol(functionSymbol, functionSymbol.Declaration), expression);
         functionSymbol.Body = ExpressionHandler(function.Body);
-        functionSymbol.Ensures = ProcessListAttributedExpressions(function.Ens, ExpressionHandler);
-        functionSymbol.Requires = ProcessListAttributedExpressions(function.Req, ExpressionHandler);
-        functionSymbol.Reads = ProcessListFramedExpressions(function.Reads, ExpressionHandler);
-        functionSymbol.Decreases = ProcessListExpressions(function.Decreases.Expressions, ExpressionHandler);
+        functionSymbol.Ensures.AddRange(ProcessListAttributedExpressions(function.Ens, ExpressionHandler));
+        functionSymbol.Requires.AddRange(ProcessListAttributedExpressions(function.Req, ExpressionHandler));
+        functionSymbol.Reads.AddRange(ProcessListFramedExpressions(function.Reads, ExpressionHandler));
+        functionSymbol.Decreases.AddRange(ProcessListExpressions(function.Decreases.Expressions, ExpressionHandler));
         functionSymbol.ByMethodBody = function.ByMethodBody == null ? null : ProcessFunctionByMethodBody(functionSymbol, function.ByMethodBody);
         return functionSymbol;
       }
 
-      private List<ScopeSymbol> ProcessListAttributedExpressions(
-        IList<AttributedExpression> list, Func<Expression?, ScopeSymbol?> expressionHandler
+      private IEnumerable<ScopeSymbol> ProcessListAttributedExpressions(
+        IEnumerable<AttributedExpression> list, Func<Expression?, ScopeSymbol?> expressionHandler
         ) {
-        return list.SelectMany(attributedExpression =>
-          expressionHandler(attributedExpression.E).AsEnumerable()).ToList();
+        return list.Select(attributedExpression =>
+          expressionHandler(attributedExpression.E)).Where(x => x != null).OfType<ScopeSymbol>();
       }
 
-      private List<ScopeSymbol> ProcessListFramedExpressions(
-        IList<FrameExpression> list, Func<Expression?, ScopeSymbol?> expressionHandler
+      private IEnumerable<ScopeSymbol> ProcessListFramedExpressions(
+        IEnumerable<FrameExpression> list, Func<Expression?, ScopeSymbol?> expressionHandler
         ) {
-        return list.SelectMany(frameExpression =>
-          expressionHandler(frameExpression.E).AsEnumerable()).ToList();
+        return list.Select(frameExpression =>
+          expressionHandler(frameExpression.E)).Where(x => x != null).OfType<ScopeSymbol>();
       }
 
-      private List<ScopeSymbol> ProcessListExpressions<T>(
-        List<T> list, Func<T, ScopeSymbol?> expressionHandler
+      private IEnumerable<ScopeSymbol> ProcessListExpressions<T>(
+        IEnumerable<T> list, Func<T, ScopeSymbol?> expressionHandler
         ) where T : class {
-        return list.SelectMany(expression =>
-          expressionHandler(expression).AsEnumerable()).ToList();
+        return list.Select(expression =>
+          expressionHandler(expression)).Where(x => x != null).OfType<ScopeSymbol>();
       }
 
       private MethodSymbol ProcessMethod(Symbol scope, Method method) {
@@ -206,11 +206,11 @@ namespace Microsoft.Dafny.LanguageServer.Language.Symbols {
           expression == null
             ? null
             : ProcessExpression(new ScopeSymbol(methodSymbol, methodSymbol.Declaration), expression);
-        methodSymbol.Ensures = ProcessListAttributedExpressions(method.Ens, ExpressionHandler);
-        methodSymbol.Requires = ProcessListAttributedExpressions(method.Req, ExpressionHandler);
-        methodSymbol.Modifies = ProcessListExpressions(
-          method.Mod.Expressions.Select(frameExpression => frameExpression.E).ToList(), ExpressionHandler);
-        methodSymbol.Decreases = ProcessListExpressions(method.Decreases.Expressions, ExpressionHandler);
+        methodSymbol.Ensures.AddRange(ProcessListAttributedExpressions(method.Ens, ExpressionHandler));
+        methodSymbol.Requires.AddRange(ProcessListAttributedExpressions(method.Req, ExpressionHandler));
+        methodSymbol.Modifies.AddRange(ProcessListExpressions(
+          method.Mod.Expressions.Select(frameExpression => frameExpression.E).ToList(), ExpressionHandler));
+        methodSymbol.Decreases.AddRange(ProcessListExpressions(method.Decreases.Expressions, ExpressionHandler));
 
         return methodSymbol;
       }
