@@ -9,8 +9,8 @@ namespace Microsoft.Dafny.LanguageServer.Workspace.Notifications {
   /// <summary>
   /// DTO used to communicate the current compilation status to the LSP client.
   /// </summary>
-  [Method(DafnyRequestNames.VerificationDiagnostics, Direction.ServerToClient)]
-  public class VerificationIntermediateParams : IRequest, IRequest<Unit> {
+  [Method(DafnyRequestNames.VerificationIntermediate, Direction.ServerToClient)]
+  public class VerificationIntermediateParams : IRequest {
     /// <summary>
     /// Gets the URI of the document whose verification completed.
     /// </summary>
@@ -22,12 +22,17 @@ namespace Microsoft.Dafny.LanguageServer.Workspace.Notifications {
     public int? Version { get; init; }
 
     /// <summary>
-    /// Gets the ghost state diagnostics.
+    /// Gets the name of the method being verified
     /// </summary>
-    public string MethodName { get; init; }
+    public string? MethodNameBeingVerified { get; init; }
 
     /// <summary>
-    /// Gets the ranges of top level members that were verified
+    /// Gets the name of the method that was last verified
+    /// </summary>
+    public string? MethodNameVerified { get; init; }
+
+    /// <summary>
+    /// Gets the verification status of the last method name that was verified
     /// </summary>
     public bool Verified { get; init; }
 

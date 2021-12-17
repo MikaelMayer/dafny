@@ -102,23 +102,22 @@ namespace Microsoft.Dafny.LanguageServer.Language {
         // The printer is responsible for two things: It logs boogie errors and captures the counter example model.
         var errorReporter = (DiagnosticErrorReporter)program.reporter;
 
-        string? previouslyVerified = null;
+        string? previousMethodName = null;
         bool hasErrors = false;
-        void VerifyCallback(string s) {
-          if (previouslyVerified != null) {
-            languageServer.TextDocument.SendNotification(new VerificationIntermediateParams {
-              Uri = document.Uri,
-              Version = document.Version,
-              MethodName = previouslyVerified,
-              Verified = !hasErrors,
-              Range = GetMethodRange(previouslyVerified, document.Program)
-            });
-          }
-          previouslyVerified = s;
+        void VerifyCallback(string newMethodName) {
+          languageServer.TextDocument.SendNotification(new VerificationIntermediateParams {
+            Uri = document.Uri,
+            Version = document.Version,
+            MethodNameBeingVerified = newMethodName,
+            MethodNameVerified = previousMethodName,
+            Verified = !hasErrors,
+            Range = null // GetMethodRange(previousMethodName, document.Program)
+          });
+          previousMethodName = newMethodName;
           hasErrors = false;
         }
         void VerifyStatusCallback(string s) {
-          if (s == "error" || s == "errors") {
+          if (s is "error" or "errors") {
             hasErrors = true;
           }
         }
@@ -187,14 +186,14 @@ namespace Microsoft.Dafny.LanguageServer.Language {
       public string? SerializedCounterExamples => serializedCounterExamples?.ToString();
 
 
-      private const string VerifyRegexStr = @"Verifying CheckWellformed\$\$_module\.(?:__default\.)?(\S*)";
+      private const string VerifyRegexStr = @"Verifying CheckWellformed\$\$(\S*)";
       private const string VerifyStatusRegexStr = @"^\s*(verified|error|errors)$";
-      private Regex verifyRegex;
-      private Regex verifyStatusRegex;
+      private readonly Regex verifyRegex;
+      private readonly Regex verifyStatusRegex;
       public ModelCapturingOutputPrinter(
           ILogger logger, DiagnosticErrorReporter errorReporter,
-          Action<String> onVerify,
-          Action<String> onVerifyStatus) {
+          Action<string> onVerify,
+          Action<string> onVerifyStatus) {
         this.logger = logger;
         this.errorReporter = errorReporter;
         this.onVerify = onVerify;
@@ -207,15 +206,6 @@ namespace Microsoft.Dafny.LanguageServer.Language {
       }
 
       public void ErrorWriteLine(TextWriter tw, string s) {
-        Match match = verifyRegex.Match(s);
-        if (match.Success) {
-          onVerify("" + match.Groups[0]);
-        }
-
-        match = verifyStatusRegex.Match(s);
-        if (match.Success) {
-          onVerifyStatus("" + match.Groups[0]);
-        }
         logger.LogError(s);
       }
 
@@ -224,6 +214,15 @@ namespace Microsoft.Dafny.LanguageServer.Language {
       }
 
       public void Inform(string s, TextWriter tw) {
+        Match match = verifyRegex.Match(s);
+        if (match.Success) {
+          onVerify("" + match.Groups[1]);
+        }
+
+        match = verifyStatusRegex.Match(s);
+        if (match.Success) {
+          onVerifyStatus("" + match.Groups[1]);
+        }
         logger.LogInformation(s);
       }
 
