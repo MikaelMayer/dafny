@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using Microsoft.Dafny.LanguageServer.Workspace;
 
 namespace Microsoft.Dafny.LanguageServer.Language {
   /// <summary>
@@ -13,6 +14,6 @@ namespace Microsoft.Dafny.LanguageServer.Language {
     /// <returns>The result of the verification run.</returns>
     /// <exception cref="System.OperationCanceledException">Thrown when the cancellation was requested before completion.</exception>
     /// <exception cref="System.ObjectDisposedException">Thrown if the cancellation token was disposed before the completion.</exception>
-    VerificationResult Verify(Dafny.Program program, CancellationToken cancellationToken);
+    VerificationResult Verify(DafnyDocument program, CancellationToken cancellationToken);
   }
 }

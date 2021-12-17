@@ -159,7 +159,7 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
     private DafnyDocument VerifyInternal(VerifyRequest verifyRequest) {
       var (document, cancellationToken) = verifyRequest;
       notificationPublisher.SendStatusNotification(document.Text, CompilationStatus.VerificationStarted);
-      var verificationResult = verifier.Verify(document.Program, cancellationToken);
+      var verificationResult = verifier.Verify(document, cancellationToken);
       var compilationStatusAfterVerification = verificationResult.Verified
         ? CompilationStatus.VerificationSucceeded
         : CompilationStatus.VerificationFailed;

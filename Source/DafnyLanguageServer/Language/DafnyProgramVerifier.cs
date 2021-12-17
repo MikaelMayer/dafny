@@ -1,11 +1,16 @@
 ﻿using Microsoft.Boogie;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using System.Threading;
+using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using System;
+using System.Text.RegularExpressions;
+using Microsoft.Dafny.LanguageServer.Workspace;
+using Microsoft.Dafny.LanguageServer.Workspace.Notifications;
+using Range = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
 namespace Microsoft.Dafny.LanguageServer.Language {
   /// <summary>
@@ -22,11 +27,17 @@ namespace Microsoft.Dafny.LanguageServer.Language {
     private static bool initialized;
 
     private readonly ILogger logger;
+    private readonly ILanguageServerFacade languageServer;
     private readonly VerifierOptions options;
     private readonly SemaphoreSlim mutex = new(1);
 
-    private DafnyProgramVerifier(ILogger<DafnyProgramVerifier> logger, VerifierOptions options) {
+    private DafnyProgramVerifier(
+      ILogger<DafnyProgramVerifier> logger,
+      ILanguageServerFacade languageServer,
+      VerifierOptions options
+      ) {
       this.logger = logger;
+      this.languageServer = languageServer;
       this.options = options;
     }
 
@@ -35,9 +46,11 @@ namespace Microsoft.Dafny.LanguageServer.Language {
     /// settings are set exactly ones.
     /// </summary>
     /// <param name="logger">A logger instance that may be used by this verifier instance.</param>
+    /// <param name="languageServer">A instance of the language server</param>
     /// <param name="options">Settings for the verifier.</param>
     /// <returns>A safely created dafny verifier instance.</returns>
-    public static DafnyProgramVerifier Create(ILogger<DafnyProgramVerifier> logger, IOptions<VerifierOptions> options) {
+    public static DafnyProgramVerifier Create(
+      ILogger<DafnyProgramVerifier> logger, ILanguageServerFacade languageServer, IOptions<VerifierOptions> options) {
       lock (InitializationSyncObject) {
         if (!initialized) {
           // TODO This may be subject to change. See Microsoft.Boogie.Counterexample
@@ -48,7 +61,7 @@ namespace Microsoft.Dafny.LanguageServer.Language {
           initialized = true;
           logger.LogTrace("initialized the boogie verifier...");
         }
-        return new DafnyProgramVerifier(logger, options.Value);
+        return new DafnyProgramVerifier(logger, languageServer, options.Value);
       }
     }
 
@@ -58,12 +71,59 @@ namespace Microsoft.Dafny.LanguageServer.Language {
         : Convert.ToInt32(options.VcsCores);
     }
 
-    public VerificationResult Verify(Dafny.Program program, CancellationToken cancellationToken) {
+    private static Range? GetMethodRange(string name,
+      Dafny.ModuleDefinition module) {
+      foreach (var topLevelDecl in module.TopLevelDecls) {
+        if (topLevelDecl.FullName == name) {
+          return new Range(topLevelDecl.BodyStartTok.line, topLevelDecl.BodyStartTok.col,
+               topLevelDecl.BodyEndTok.line, topLevelDecl.BodyEndTok.col);
+        }
+      }
+
+      return null;
+    }
+
+
+    private static Range? GetMethodRange(string name, Dafny.Program program) {
+      foreach (var module in program.Modules()) {
+        var range = GetMethodRange(name, module);
+        if (range != null) {
+          return range;
+        }
+      }
+
+      return null;
+    }
+
+    public VerificationResult Verify(DafnyDocument document, CancellationToken cancellationToken) {
+      var program = document.Program;
       mutex.Wait(cancellationToken);
       try {
         // The printer is responsible for two things: It logs boogie errors and captures the counter example model.
         var errorReporter = (DiagnosticErrorReporter)program.reporter;
-        var printer = new ModelCapturingOutputPrinter(logger, errorReporter);
+
+        string? previouslyVerified = null;
+        bool hasErrors = false;
+        void VerifyCallback(string s) {
+          if (previouslyVerified != null) {
+            languageServer.TextDocument.SendNotification(new VerificationIntermediateParams {
+              Uri = document.Uri,
+              Version = document.Version,
+              MethodName = previouslyVerified,
+              Verified = !hasErrors,
+              Range = GetMethodRange(previouslyVerified, document.Program)
+            });
+          }
+          previouslyVerified = s;
+          hasErrors = false;
+        }
+        void VerifyStatusCallback(string s) {
+          if (s == "error" || s == "errors") {
+            hasErrors = true;
+          }
+        }
+
+        var printer = new ModelCapturingOutputPrinter(logger, errorReporter, VerifyCallback, VerifyStatusCallback);
         ExecutionEngine.printer = printer;
         // Do not set the time limit within the construction/statically. It will break some VerificationNotificationTest unit tests
         // since we change the configured time limit depending on the test.
@@ -120,19 +180,42 @@ namespace Microsoft.Dafny.LanguageServer.Language {
     private class ModelCapturingOutputPrinter : OutputPrinter {
       private readonly ILogger logger;
       private readonly DiagnosticErrorReporter errorReporter;
+      private readonly Action<string> onVerify;
+      private readonly Action<string> onVerifyStatus;
       private StringBuilder? serializedCounterExamples;
 
       public string? SerializedCounterExamples => serializedCounterExamples?.ToString();
 
-      public ModelCapturingOutputPrinter(ILogger logger, DiagnosticErrorReporter errorReporter) {
+
+      private const string VerifyRegexStr = @"Verifying CheckWellformed\$\$_module\.(?:__default\.)?(\S*)";
+      private const string VerifyStatusRegexStr = @"^\s*(verified|error|errors)$";
+      private Regex verifyRegex;
+      private Regex verifyStatusRegex;
+      public ModelCapturingOutputPrinter(
+          ILogger logger, DiagnosticErrorReporter errorReporter,
+          Action<String> onVerify,
+          Action<String> onVerifyStatus) {
         this.logger = logger;
         this.errorReporter = errorReporter;
+        this.onVerify = onVerify;
+        this.onVerifyStatus = onVerifyStatus;
+        verifyRegex = new Regex(VerifyRegexStr);
+        verifyStatusRegex = new Regex(VerifyStatusRegexStr);
       }
 
       public void AdvisoryWriteLine(string format, params object[] args) {
       }
 
       public void ErrorWriteLine(TextWriter tw, string s) {
+        Match match = verifyRegex.Match(s);
+        if (match.Success) {
+          onVerify("" + match.Groups[0]);
+        }
+
+        match = verifyStatusRegex.Match(s);
+        if (match.Success) {
+          onVerifyStatus("" + match.Groups[0]);
+        }
         logger.LogError(s);
       }
 
