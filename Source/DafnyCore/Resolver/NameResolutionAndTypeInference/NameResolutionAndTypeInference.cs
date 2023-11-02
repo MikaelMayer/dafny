@@ -1123,7 +1123,7 @@ namespace Microsoft.Dafny {
         var e = (StmtExpr)expr;
         int prevErrorCount = reporter.Count(ErrorLevel.Error);
 
-        ResolveStatement(e.S, resolutionContext);
+        ResolveStatement(e.S, resolutionContext.WithGhost(true));
         if (reporter.Count(ErrorLevel.Error) == prevErrorCount) {
           var r = e.S as UpdateStmt;
           if (r != null && r.ResolvedStatements.Count == 1) {
@@ -3492,9 +3492,11 @@ namespace Microsoft.Dafny {
       return new Resolver_IdentifierExpr(tok, decl, tpArgs);
     }
 
+    public IToken LastHeapReadInExpression = null;
     public void ResolveStatement(Statement stmt, ResolutionContext resolutionContext) {
       Contract.Requires(stmt != null);
       Contract.Requires(resolutionContext != null);
+      LastHeapReadInExpression = null;
       if (stmt is ICanResolve canResolve) {
         canResolve.Resolve(this, resolutionContext);
         return;
@@ -3524,7 +3526,7 @@ namespace Microsoft.Dafny {
               "{:only} only accepts \"before\" or \"after\" as an optional argument");
           }
         }
-        ResolveExpression(s.Expr, resolutionContext);
+        ResolveExpression(s.Expr, resolutionContext.WithGhost(s is not ExpectStmt));
         Contract.Assert(s.Expr.Type != null);  // follows from postcondition of ResolveExpression
         ConstrainTypeExprBool(s.Expr, "condition is expected to be of type bool, but is {0}");
         if (assertStmt != null && assertStmt.Proof != null) {
@@ -5852,6 +5854,18 @@ namespace Microsoft.Dafny {
 
       var rr = new MemberSelectExpr(tok, receiver, member.Name);
       rr.Member = member;
+      // TODO: Move this check entirely after checking ghostness of every expression
+      if (member is Field && !resolutionContext.IsGhost && resolutionContext.CodeContext is Method {HasConcurrentAttribute: true}) {
+        if (LastHeapReadInExpression != null) {
+          reporter.Warning(MessageSource.Resolver, "one-heap-dereference",
+            new NestedToken(tok, LastHeapReadInExpression,
+              "A field was previously read asynchronously in the same expression here"),
+            "Reading multiple fields in {:concurrent} context can generate data races. "+
+            "Put one field read per expression to acknowledge this warning.");
+        }
+
+        LastHeapReadInExpression = tok;
+      }
 
       // Now, fill in rr.Type.  This requires taking into consideration the type parameters passed to the receiver's type as well as any type
       // parameters used in this NameSegment/ExprDotName.

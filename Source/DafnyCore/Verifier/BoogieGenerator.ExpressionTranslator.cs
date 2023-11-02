@@ -491,7 +491,7 @@ namespace Microsoft.Dafny {
                       if (concurrentHeapBuilder != null) {
                         // Emit an assignment to the Heap before reading the heap
                         var previousHeap = _the_heap_expr;
-                        var newHeapName = "Heap" + concurrentHeapCounter++;
+                        var newHeapName = predef.HeapVarName + concurrentHeapCounter++;
                         var tok = GetToken(expr);
                         var newHeap = new Boogie.IdentifierExpr(tok, newHeapName, predef.HeapType);
                         _the_heap_expr = newHeap;
@@ -511,6 +511,15 @@ namespace Microsoft.Dafny {
                                     previousHeap
                                   })
                               })));
+                        var existingHeapVariable = HeapIdentifierExpr(predef, tok);
+                        concurrentHeapBuilder.Add(
+                          new Boogie.AssignCmd(tok,
+                            new List<AssignLhs>() {
+                              new SimpleAssignLhs(tok, existingHeapVariable)
+                            }, new List<Expr>() {
+                              newHeap
+                            }
+                            ));
                       }
                       result = ReadHeap(GetToken(expr), HeapExpr, obj, new Boogie.IdentifierExpr(GetToken(expr), BoogieGenerator.GetField(field)), fType);
                       return BoogieGenerator.CondApplyUnbox(GetToken(expr), result, field.Type, expr.Type);
