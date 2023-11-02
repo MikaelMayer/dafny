@@ -512,14 +512,7 @@ namespace Microsoft.Dafny {
                                   })
                               })));
                         var existingHeapVariable = HeapIdentifierExpr(predef, tok);
-                        concurrentHeapBuilder.Add(
-                          new Boogie.AssignCmd(tok,
-                            new List<AssignLhs>() {
-                              new SimpleAssignLhs(tok, existingHeapVariable)
-                            }, new List<Expr>() {
-                              newHeap
-                            }
-                            ));
+                        concurrentHeapBuilder.Add(Cmd.SimpleAssign(tok, existingHeapVariable, newHeap));
                       }
                       result = ReadHeap(GetToken(expr), HeapExpr, obj, new Boogie.IdentifierExpr(GetToken(expr), BoogieGenerator.GetField(field)), fType);
                       return BoogieGenerator.CondApplyUnbox(GetToken(expr), result, field.Type, expr.Type);

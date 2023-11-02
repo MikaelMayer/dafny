@@ -4062,6 +4062,8 @@ namespace Microsoft.Dafny {
 
     int projectionFunctionCount = 0;
     private Declaration currentDeclaration;
+    private bool isConcurrent => currentDeclaration is Method {HasConcurrentAttribute: true};
+
 
     // ----- Expression ---------------------------------------------------------------------------
 
