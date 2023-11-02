@@ -545,7 +545,10 @@ namespace Microsoft.Dafny {
       // Also don't do any reads checks if the reads clause is *,
       // since all the checks will be trivially true
       // and we don't need to cause additional verification cost for existing code.
-      if (!options.Get(CommonOptionBag.ReadsClausesOnMethods) || m.IsLemmaLike || m.Reads.Expressions.Exists(e => e.E is WildcardExpr)) {
+      if (!options.Get(CommonOptionBag.ReadsClausesOnMethods)
+          || m.IsLemmaLike
+          || m.Reads.Expressions.Exists(e => e.E is WildcardExpr)
+          || m.HasConcurrentAttribute) {
         etran = etran.WithReadsFrame(null);
       }
       InitializeFuelConstant(m.tok, builder, etran);
@@ -707,14 +710,13 @@ namespace Microsoft.Dafny {
           CheckFrameWellFormed(wfo, m.Reads.Expressions, localVariables, builder, etran);
         });
         // Also check that the reads clause == {} if the {:concurrent} attribute is present
-        if (Attributes.Contains(m.Attributes, Attributes.ConcurrentAttributeName)) {
+        if (m.HasConcurrentAttribute) {
           var desc = new PODesc.ConcurrentFrameEmpty("reads clause");
           if (etran.readsFrame != null) {
             CheckFrameEmpty(m.tok, etran, etran.ReadsFrame(m.tok), builder, desc, null);
           } else {
-            // etran.readsFrame being null indicates the default of reads *,
-            // so this is an automatic failure.
-            builder.Add(Assert(m.tok, Expr.False, desc));
+            // etran.readsFrame being null indicates the default of reads {}
+            // which is the default for concurrent methods
           }
         }
 
@@ -723,7 +725,7 @@ namespace Microsoft.Dafny {
           CheckFrameWellFormed(wfo, m.Mod.Expressions, localVariables, builder, etran);
         });
         // Also check that the modifies clause == {} if the {:concurrent} attribute is present
-        if (Attributes.Contains(m.Attributes, Attributes.ConcurrentAttributeName)) {
+        if (m.HasConcurrentAttribute) {
           var desc = new PODesc.ConcurrentFrameEmpty("modifies clause");
           CheckFrameEmpty(m.tok, etran, etran.ModifiesFrame(m.tok), builder, desc, null);
         }

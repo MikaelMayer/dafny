@@ -1499,3 +1499,14 @@ axiom (forall x, y, z: int ::
 #endif
 
 // -------------------------------------------------------------------------
+
+//
+// Axiomatisation of concurrency
+//
+
+function ConcurrentModification(Heap): Heap;
+
+axiom (forall heap: Heap ::
+      { ConcurrentModification(heap) }
+      $HeapSucc(heap, ConcurrentModification(heap)));
+

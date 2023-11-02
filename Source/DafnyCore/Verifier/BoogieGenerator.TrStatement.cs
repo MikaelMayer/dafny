@@ -21,6 +21,13 @@ namespace Microsoft.Dafny {
 
       stmtContext = StmtType.NONE;
       adjustFuelForExists = true;  // fuel for exists might need to be adjusted based on whether it's in an assert or assume stmt.
+      StmtListBuilder previousConcurrentHeapBuilder = etran.concurrentHeapBuilder;
+      if (this.currentDeclaration is Method {HasConcurrentAttribute: true} && !stmt.IsGhost) {
+        etran.concurrentHeapBuilder = builder.builder;
+        etran.localVariables = locals;
+      } else {
+        etran.concurrentHeapBuilder = null;
+      }
       if (stmt is PredicateStmt predicateStmt) {
         TrPredicateStmt(predicateStmt, builder, locals, etran);
 
@@ -513,6 +520,8 @@ namespace Microsoft.Dafny {
       } else {
         Contract.Assert(false); throw new cce.UnreachableException();  // unexpected statement
       }
+
+      etran.concurrentHeapBuilder = previousConcurrentHeapBuilder;
     }
 
     private void TrPredicateStmt(PredicateStmt stmt, BoogieStmtListBuilder builder, List<Variable> locals, ExpressionTranslator etran) {

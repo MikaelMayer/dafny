@@ -11,7 +11,7 @@ namespace Microsoft.Dafny {
     public class ExpressionTranslator {
       private DafnyOptions options;
       // HeapExpr == null ==> translation of pure (no-heap) expression
-      readonly Boogie.Expr _the_heap_expr;
+      Boogie.Expr _the_heap_expr;
       public Boogie.Expr HeapExpr {
         // The increment of Statistics_HeapUses in the following line is a hack and not entirely a good idea.
         // Not only does one need to be careful not to mention HeapExpr in contracts (in particular, in ObjectInvariant()
@@ -140,6 +140,10 @@ namespace Microsoft.Dafny {
       }
 
       ExpressionTranslator oldEtran;
+      public StmtListBuilder concurrentHeapBuilder;
+      public int concurrentHeapCounter = 0;
+      public List<Variable> localVariables; // Not null if concurrentHeapBuilder is not null
+
       public ExpressionTranslator Old {
         get {
           Contract.Ensures(Contract.Result<ExpressionTranslator>() != null);
@@ -484,6 +488,30 @@ namespace Microsoft.Dafny {
                     Boogie.Expr obj = TrExpr(e.Obj);
                     Boogie.Expr result;
                     if (field.IsMutable) {
+                      if (concurrentHeapBuilder != null) {
+                        // Emit an assignment to the Heap before reading the heap
+                        var previousHeap = _the_heap_expr;
+                        var newHeapName = "Heap" + concurrentHeapCounter++;
+                        var tok = GetToken(expr);
+                        var newHeap = new Boogie.IdentifierExpr(tok, newHeapName, predef.HeapType);
+                        _the_heap_expr = newHeap;
+                        Microsoft.Boogie.Variable heapVar = new Boogie.LocalVariable(tok.ToRange(), new TypedIdent(tok, newHeapName, predef.HeapType));
+                        localVariables.Add(heapVar);
+                        concurrentHeapBuilder.Add(
+                          new AssumeCmd(GetToken(expr),
+                            new NAryExpr(tok,
+                              new BinaryOperator(tok, BinaryOperator.Opcode.Eq),
+                              new List<Expr>() {
+                                _the_heap_expr,
+                                new NAryExpr(tok,
+                                  new FunctionCall(
+                                    new Boogie.IdentifierExpr(tok,
+                                      "ConcurrentModification")),
+                                  new List<Expr>() {
+                                    previousHeap
+                                  })
+                              })));
+                      }
                       result = ReadHeap(GetToken(expr), HeapExpr, obj, new Boogie.IdentifierExpr(GetToken(expr), BoogieGenerator.GetField(field)), fType);
                       return BoogieGenerator.CondApplyUnbox(GetToken(expr), result, field.Type, expr.Type);
                     } else {
