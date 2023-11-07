@@ -170,7 +170,7 @@ public partial class BoogieGenerator {
     });
 
     // If the function is marked as {:concurrent}, check that the reads clause is empty.
-    if (f.HasConcurrentAttribute) {
+    if (f.HasConcurrentAttribute || f.HasVolatileAttribute) {
       var desc = new PODesc.ConcurrentFrameEmpty("reads clause");
       CheckFrameEmpty(f.tok, etran, etran.ReadsFrame(f.tok), builder, desc, null);
     }

@@ -1,21 +1,40 @@
-trait Holder<T> {
-  var value: T
+trait Role {
+  var name: string
+  var age: nat
+  method RoleSnapshot() returns (name: string, age: nat)
+    reads this
+    ensures name == this.name && age == this.age
+  {
+    name := this.name;
+    age := this.age;
+  }
+  method ReplaceWith(name: string, age: nat)
+    reads this
+    modifies this
+    ensures name == this.name && age == this.age
+  {
+    this.name := name;
+    this.age := age;
+  }
 }
 
-method {:concurrent} Test(holder: Holder<int>)
+method {:volatile} LogOncall(oncall: Role)
+  //reads oncall // TODO: ERror if reads, like "cannot assume oncall is read lock"
 {
-  var x := holder.value + holder.value;
-  //x := x + holder.value;
-  assert holder.value + holder.value == 2*holder.value;
-  assert x == holder.value + holder.value;
+  var name, age := oncall.name, oncall.age;
+  print name, " is currently oncall (", age, " years old)";
+  assert name == oncall.name && age == oncall.age;
+  name, age := oncall.RoleSnapshot();  // TODO: No modifies and reads check, only compilation
+  assert name == oncall.name && age == oncall.age;
 }
 
-method {:concurrent} Test2(holder1: Holder<int>, holder2: Holder<int>)
-  //modifies holder1, holder2
-  requires holder1 != holder2
+method {:volatile} ReplaceOncall(oncall: Role, name: string, age: nat)
+  //modifies oncall
 {
-  holder1.value := 2;
-  assert holder1.value == 2; // Provable all the time
-  holder2.value := 3;
-  assert holder1.value == 2; // Not provable in concurrent context
+  oncall.name, oncall.age := name, age;
+  // oncall.name := 2;
+  // oncall.age := 3;
+  assert oncall.name == name && oncall.age == age;
+  oncall.ReplaceWith(name, age);  // TODO: Emit locks and remove error
+  assert oncall.name == name && oncall.age == age;     // Now provable
 }

@@ -5855,12 +5855,12 @@ namespace Microsoft.Dafny {
       var rr = new MemberSelectExpr(tok, receiver, member.Name);
       rr.Member = member;
       // TODO: Move this check entirely after checking ghostness of every expression
-      if (member is Field && !resolutionContext.IsGhost && resolutionContext.CodeContext is Method {HasConcurrentAttribute: true}) {
+      if (member is Field && !resolutionContext.IsGhost && resolutionContext.CodeContext is Method {HasVolatileAttribute: true}) {
         if (LastHeapReadInExpression != null) {
           reporter.Warning(MessageSource.Resolver, "one-heap-dereference",
-            new NestedToken(tok, LastHeapReadInExpression,
-              "A field was previously read asynchronously in the same expression here"),
-            "Reading multiple fields in {:concurrent} context can generate data races. "+
+            new NestedToken(LastHeapReadInExpression, tok,
+              "A field is accessed asynchronously later here"),
+            "Accessing multiple fields in {:volatile} context can generate data races. "+
             "Put one field read per expression to acknowledge this warning.");
         }
 

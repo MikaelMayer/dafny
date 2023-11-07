@@ -45,6 +45,8 @@ public abstract class Declaration : RangeNode, IAttributeBearingDeclaration, IDe
 
   public bool HasConcurrentAttribute =>
     Attributes.Contains(Attributes, Attributes.ConcurrentAttributeName);
+  public bool HasVolatileAttribute =>
+    Attributes.Contains(Attributes, Attributes.VolatileAttributeName);
 
   public bool HasExternAttribute =>
     Attributes.Contains(Attributes, Attributes.ExternAttributeName);

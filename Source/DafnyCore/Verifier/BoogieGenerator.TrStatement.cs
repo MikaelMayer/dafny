@@ -22,7 +22,7 @@ namespace Microsoft.Dafny {
       stmtContext = StmtType.NONE;
       adjustFuelForExists = true;  // fuel for exists might need to be adjusted based on whether it's in an assert or assume stmt.
       StmtListBuilder previousConcurrentHeapBuilder = etran.concurrentHeapBuilder;
-      if (this.currentDeclaration is Method {HasConcurrentAttribute: true} && !stmt.IsGhost) {
+      if (this.currentDeclaration is Method {HasVolatileAttribute: true} && !stmt.IsGhost) {
         etran.concurrentHeapBuilder = builder.builder;
         etran.localVariables = locals;
       } else {
@@ -1215,7 +1215,7 @@ namespace Microsoft.Dafny {
       var lhs = Substitute(s0.Lhs.Resolved, null, substMap);
       TrStmt_CheckWellformed(lhs, definedness, locals, etran, false);
       string description = GetObjFieldDetails(lhs, etran, out var obj, out var F);
-      if (isConcurrent) {
+      if (isVolatile) {
         definedness.Add(Assert(lhs.tok, Bpl.Expr.SelectTok(lhs.tok, etran.ModifiesFrame(lhs.tok), obj, F),
           new PODesc.Modifiable(description)));
       }
@@ -2409,7 +2409,7 @@ namespace Microsoft.Dafny {
           var obj = SaveInTemp(etran.TrExpr(fse.Obj), rhsCanAffectPreviouslyKnownExpressions,
             "$obj" + i, predef.RefType, builder, locals);
           prevObj[i] = obj;
-          if (!useSurrogateLocal && !isConcurrent) {
+          if (!useSurrogateLocal && !isVolatile) {
             // check that the enclosing modifies clause allows this object to be written:  assert $_ModifiesFrame[obj]);
             builder.Add(Assert(tok, Bpl.Expr.SelectTok(tok, etran.ModifiesFrame(tok), obj, GetField(fse)), new PODesc.Modifiable("an object")));
           }
@@ -2437,7 +2437,7 @@ namespace Microsoft.Dafny {
                 Contract.Assert(fseField != null);
                 Check_NewRestrictions(tok, obj, fseField, rhs, bldr, et);
                 var h = (Bpl.IdentifierExpr)et.HeapExpr;  // TODO: is this cast always justified?
-                if (isConcurrent
+                if (isVolatile
                    ) {
                   // Havoc the heap before
                   var havocCmd = 
@@ -2475,7 +2475,7 @@ namespace Microsoft.Dafny {
           prevObj[i] = obj;
           prevIndex[i] = fieldName;
           
-          if(!isConcurrent) {
+          if(!isVolatile) {
             // check that the enclosing modifies clause allows this object to be written:  assert $_Frame[obj,index]);
             builder.Add(Assert(tok, Bpl.Expr.SelectTok(tok, etran.ModifiesFrame(tok), obj, fieldName),
               new PODesc.Modifiable("an array element")));

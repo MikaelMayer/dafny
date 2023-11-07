@@ -8,17 +8,13 @@ namespace Microsoft.Dafny;
 
 public class Method : MemberDecl, TypeParameter.ParentType,
   IMethodCodeContext, ICanFormat, IHasDocstring, IHasSymbolChildren, ICanAutoRevealDependencies, ICanVerify {
-  public override IEnumerable<INode> Children => new Node[] {Body, Decreases}.Where(x => x != null).Concat(Ins)
-    .Concat(Outs).Concat<Node>(TypeArgs).Concat(Req).Concat(Ens).Concat(Reads.Expressions).Concat(Mod.Expressions);
-
+  public override IEnumerable<INode> Children => new Node[] { Body, Decreases }.Where(x => x != null).
+    Concat(Ins).Concat(Outs).Concat<Node>(TypeArgs).
+    Concat(Req).Concat(Ens).Concat(Reads.Expressions).Concat(Mod.Expressions);
   public override IEnumerable<INode> PreResolveChildren => Children;
 
   public override string WhatKind => "method";
-
-  public bool SignatureIsOmitted {
-    get { return SignatureEllipsis != null; }
-  }
-
+  public bool SignatureIsOmitted { get { return SignatureEllipsis != null; } }
   public readonly IToken SignatureEllipsis;
   public readonly bool IsByMethod;
   public bool MustReverify;
@@ -50,8 +46,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       yield return a;
     }
 
-    if (Body is null && HasPostcondition && !EnclosingClass.EnclosingModuleDefinition.IsAbstract &&
-        !HasExternAttribute) {
+    if (Body is null && HasPostcondition && !EnclosingClass.EnclosingModuleDefinition.IsAbstract && !HasExternAttribute) {
       yield return new Assumption(this, tok, AssumptionDescription.NoBody(IsGhost));
     }
 
@@ -79,23 +74,18 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       foreach (var formal in Ins.Where(f => f.DefaultValue != null)) {
         yield return formal.DefaultValue;
       }
-
       foreach (var e in Req) {
         yield return e.E;
       }
-
       foreach (var e in Reads.Expressions) {
         yield return e.E;
       }
-
       foreach (var e in Mod.Expressions) {
         yield return e.E;
       }
-
       foreach (var e in Ens) {
         yield return e.E;
       }
-
       foreach (var e in Decreases.Expressions) {
         yield return e;
       }
@@ -115,9 +105,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
   }
 
   public Method(Cloner cloner, Method original) : base(cloner, original) {
-    this.TypeArgs = cloner.CloneResolvedFields
-      ? original.TypeArgs
-      : original.TypeArgs.ConvertAll(cloner.CloneTypeParam);
+    this.TypeArgs = cloner.CloneResolvedFields ? original.TypeArgs : original.TypeArgs.ConvertAll(cloner.CloneTypeParam);
     this.Ins = original.Ins.ConvertAll(p => cloner.CloneFormal(p, false));
     if (original.Outs != null) {
       this.Outs = original.Outs.ConvertAll(p => cloner.CloneFormal(p, false));
@@ -169,26 +157,11 @@ public class Method : MemberDecl, TypeParameter.ParentType,
     MustReverify = false;
   }
 
-  bool ICodeContext.IsGhost {
-    get { return this.IsGhost; }
-  }
-
-  List<TypeParameter> ICodeContext.TypeArgs {
-    get { return this.TypeArgs; }
-  }
-
-  List<Formal> ICodeContext.Ins {
-    get { return this.Ins; }
-  }
-
-  List<Formal> IMethodCodeContext.Outs {
-    get { return this.Outs; }
-  }
-
-  Specification<FrameExpression> IMethodCodeContext.Modifies {
-    get { return Mod; }
-  }
-
+  bool ICodeContext.IsGhost { get { return this.IsGhost; } }
+  List<TypeParameter> ICodeContext.TypeArgs { get { return this.TypeArgs; } }
+  List<Formal> ICodeContext.Ins { get { return this.Ins; } }
+  List<Formal> IMethodCodeContext.Outs { get { return this.Outs; } }
+  Specification<FrameExpression> IMethodCodeContext.Modifies { get { return Mod; } }
   string ICallable.NameRelativeToModule {
     get {
       if (EnclosingClass is DefaultClassDecl) {
@@ -198,13 +171,8 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       }
     }
   }
-
-  Specification<Expression> ICallable.Decreases {
-    get { return this.Decreases; }
-  }
-
+  Specification<Expression> ICallable.Decreases { get { return this.Decreases; } }
   bool _inferredDecr;
-
   bool ICallable.InferredDecreases {
     set { _inferredDecr = value; }
     get { return _inferredDecr; }
@@ -214,18 +182,15 @@ public class Method : MemberDecl, TypeParameter.ParentType,
 
   ModuleDefinition IASTVisitorContext.EnclosingModule {
     get {
-      Contract.Assert(this.EnclosingClass !=
-                      null); // this getter is supposed to be called only after signature-resolution is complete
+      Contract.Assert(this.EnclosingClass != null);  // this getter is supposed to be called only after signature-resolution is complete
       return this.EnclosingClass.EnclosingModuleDefinition;
     }
   }
-
-  bool ICodeContext.MustReverify {
-    get { return this.MustReverify; }
-  }
-
+  bool ICodeContext.MustReverify { get { return this.MustReverify; } }
   public bool AllowsNontermination {
-    get { return Contract.Exists(Decreases.Expressions, e => e is WildcardExpr); }
+    get {
+      return Contract.Exists(Decreases.Expressions, e => e is WildcardExpr);
+    }
   }
 
   public override string GetCompileName(DafnyOptions options) {
@@ -291,10 +256,10 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       resolver.currentMethod = this;
 
       // make note of the warnShadowing attribute
-      bool warnShadowingOption = resolver.Options.WarnShadowing; // save the original warnShadowing value
+      bool warnShadowingOption = resolver.Options.WarnShadowing;  // save the original warnShadowing value
       bool warnShadowing = true;
       if (Attributes.ContainsBool(Attributes, "warnShadowing", ref warnShadowing)) {
-        resolver.Options.WarnShadowing = warnShadowing; // set the value according to the attribute
+        resolver.Options.WarnShadowing = warnShadowing;  // set the value according to the attribute
       }
 
       // Add in-parameters to the scope, but don't care about any duplication errors, since they have already been reported
@@ -302,7 +267,6 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       if (IsStatic || this is Constructor) {
         resolver.scope.AllowInstance = false;
       }
-
       foreach (Formal p in Ins) {
         resolver.scope.Push(p.Name, p);
       }
@@ -313,7 +277,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       foreach (AttributedExpression e in Req) {
         resolver.ResolveAttributes(e, new ResolutionContext(this, this is TwoStateLemma));
         resolver.ResolveExpression(e.E, new ResolutionContext(this, this is TwoStateLemma));
-        Contract.Assert(e.E.Type != null); // follows from postcondition of ResolveExpression
+        Contract.Assert(e.E.Type != null);  // follows from postcondition of ResolveExpression
         resolver.ConstrainTypeExprBool(e.E, "Precondition must be a boolean (got {0})");
       }
 
@@ -346,8 +310,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       // Don't care about any duplication errors among the out-parameters, since they have already been reported
       resolver.scope.PushMarker();
       if (this is ExtremeLemma && Outs.Count != 0) {
-        resolver.reporter.Error(MessageSource.Resolver, Outs[0].tok, "{0}s are not allowed to have out-parameters",
-          WhatKind);
+        resolver.reporter.Error(MessageSource.Resolver, Outs[0].tok, "{0}s are not allowed to have out-parameters", WhatKind);
       } else {
         foreach (Formal p in Outs) {
           resolver.scope.Push(p.Name, p);
@@ -358,7 +321,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       foreach (AttributedExpression e in Ens) {
         resolver.ResolveAttributes(e, new ResolutionContext(this, true));
         resolver.ResolveExpression(e.E, new ResolutionContext(this, true));
-        Contract.Assert(e.E.Type != null); // follows from postcondition of ResolveExpression
+        Contract.Assert(e.E.Type != null);  // follows from postcondition of ResolveExpression
         resolver.ConstrainTypeExprBool(e.E, "Postcondition must be a boolean (got {0})");
       }
 
@@ -370,7 +333,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
           // The body may mentioned the implicitly declared parameter _k.  Throw it into the
           // scope before resolving the body.
           var k = com.PrefixLemma.Ins[0];
-          resolver.scope.Push(k.Name, k); // we expect no name conflict for _k
+          resolver.scope.Push(k.Name, k);  // we expect no name conflict for _k
         }
 
         resolver.DominatingStatementLabels.PushMarker();
@@ -380,8 +343,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
               resolver.reporter.Error(MessageSource.Resolver, req.Label.Tok, "assert label shadows a dominating label");
             } else {
               var rr = resolver.DominatingStatementLabels.Push(req.Label.Name, req.Label);
-              Contract.Assert(rr == Scope<Label>.PushResult
-                .Success); // since we just checked for duplicates, we expect the Push to succeed
+              Contract.Assert(rr == Scope<Label>.PushResult.Success);  // since we just checked for duplicates, we expect the Push to succeed
             }
           }
         }
@@ -395,8 +357,8 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       resolver.ResolveAttributes(this, new ResolutionContext(this, this is TwoStateLemma), true);
 
       resolver.Options.WarnShadowing = warnShadowingOption; // restore the original warnShadowing value
-      resolver.scope.PopMarker(); // for the out-parameters and outermost-level locals
-      resolver.scope.PopMarker(); // for the in-parameters
+      resolver.scope.PopMarker();  // for the out-parameters and outermost-level locals
+      resolver.scope.PopMarker();  // for the in-parameters
 
     }
     finally {
@@ -420,14 +382,12 @@ public class Method : MemberDecl, TypeParameter.ParentType,
   }
 
   public virtual DafnySymbolKind Kind => DafnySymbolKind.Method;
-
   public string GetDescription(DafnyOptions options) {
     var qualifiedName = GetQualifiedName();
     var signatureWithoutReturn = $"{WhatKind} {qualifiedName}({string.Join(", ", Ins.Select(i => i.AsText()))})";
     if (Outs.Count == 0) {
       return signatureWithoutReturn;
     }
-
     return $"{signatureWithoutReturn} returns ({string.Join(", ", Outs.Select(o => o.AsText()))})";
   }
 
@@ -438,7 +398,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
   public IEnumerable<ISymbol> ChildSymbols {
     get {
       IEnumerable<INode> childStatements = Body?.Visit(node => node is Statement) ?? Enumerable.Empty<INode>();
-      return Outs.Concat(childStatements.OfType<VarDeclStmt>().SelectMany(v => (IEnumerable<ISymbol>) v.Locals));
+      return Outs.Concat(childStatements.OfType<VarDeclStmt>().SelectMany(v => (IEnumerable<ISymbol>)v.Locals));
     }
   }
 
@@ -465,7 +425,7 @@ public class Method : MemberDecl, TypeParameter.ParentType,
       if (autoRevealDepsVal is false) {
         autoRevealDepth = 0;
       } else if (autoRevealDepsVal is BigInteger i) {
-        autoRevealDepth = (int) i;
+        autoRevealDepth = (int)i;
       }
     }
 
