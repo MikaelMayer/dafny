@@ -488,32 +488,7 @@ namespace Microsoft.Dafny {
                     Boogie.Expr obj = TrExpr(e.Obj);
                     Boogie.Expr result;
                     if (field.IsMutable) {
-                      if (concurrentHeapBuilder != null) {
-                        // Emit an assignment to the Heap before reading the heap
-                        var previousHeap = _the_heap_expr;
-                        var newHeapName = predef.HeapVarName + concurrentHeapCounter++;
-                        var tok = GetToken(expr);
-                        var newHeap = new Boogie.IdentifierExpr(tok, newHeapName, predef.HeapType);
-                        _the_heap_expr = newHeap;
-                        Microsoft.Boogie.Variable heapVar = new Boogie.LocalVariable(tok.ToRange(), new TypedIdent(tok, newHeapName, predef.HeapType));
-                        localVariables.Add(heapVar);
-                        concurrentHeapBuilder.Add(
-                          new AssumeCmd(GetToken(expr),
-                            new NAryExpr(tok,
-                              new BinaryOperator(tok, BinaryOperator.Opcode.Eq),
-                              new List<Expr>() {
-                                _the_heap_expr,
-                                new NAryExpr(tok,
-                                  new FunctionCall(
-                                    new Boogie.IdentifierExpr(tok,
-                                      "ConcurrentModification")),
-                                  new List<Expr>() {
-                                    previousHeap
-                                  })
-                              })));
-                        var existingHeapVariable = HeapIdentifierExpr(predef, tok);
-                        concurrentHeapBuilder.Add(Cmd.SimpleAssign(tok, existingHeapVariable, newHeap));
-                      }
+                      MaybeUpdateHeap(GetToken(expr));
                       result = ReadHeap(GetToken(expr), HeapExpr, obj, new Boogie.IdentifierExpr(GetToken(expr), BoogieGenerator.GetField(field)), fType);
                       return BoogieGenerator.CondApplyUnbox(GetToken(expr), result, field.Type, expr.Type);
                     } else {
@@ -667,6 +642,9 @@ namespace Microsoft.Dafny {
                 var mem = recv as MemberSelectExpr;
                 var fn = mem == null ? null : mem.Member as Function;
                 if (fn != null) {
+                  if (fn.Reads.Expressions.Any()) {
+                    MaybeUpdateHeap(GetToken(applyExpr));
+                  }
                   return TrExpr(new FunctionCallExpr(e.tok, fn.Name, mem.Obj, e.tok, e.CloseParen, e.Args) {
                     Function = fn,
                     Type = e.Type,
@@ -1493,6 +1471,43 @@ namespace Microsoft.Dafny {
             }
           default:
             Contract.Assert(false); throw new cce.UnreachableException();  // unexpected expression
+        }
+      }
+
+      // We need to simulate a heap change only if it's the first time
+      // the heap is read OR the heap was surely read before in the same expression
+      // Expressions like if COND then field.read else field.read should do
+      // only one single heap reading.
+      private void MaybeUpdateHeap(IToken tok)
+      {
+        if (concurrentHeapBuilder != null)
+        {
+          // Emit an assignment to the Heap before reading the heap
+          var previousHeap = _the_heap_expr;
+          var newHeapName = predef.HeapVarName + concurrentHeapCounter++;
+          var newHeap = new Boogie.IdentifierExpr(tok, newHeapName, predef.HeapType);
+          _the_heap_expr = newHeap;
+          Microsoft.Boogie.Variable heapVar =
+            new Boogie.LocalVariable(tok.ToRange(), new TypedIdent(tok, newHeapName, predef.HeapType));
+          localVariables.Add(heapVar);
+          concurrentHeapBuilder.Add(
+            new AssumeCmd(tok,
+              new NAryExpr(tok,
+                new BinaryOperator(tok, BinaryOperator.Opcode.Eq),
+                new List<Expr>()
+                {
+                  _the_heap_expr,
+                  new NAryExpr(tok,
+                    new FunctionCall(
+                      new Boogie.IdentifierExpr(tok,
+                        "ConcurrentModification")),
+                    new List<Expr>()
+                    {
+                      previousHeap
+                    })
+                })));
+          var existingHeapVariable = HeapIdentifierExpr(predef, tok);
+          concurrentHeapBuilder.Add(Cmd.SimpleAssign(tok, existingHeapVariable, newHeap));
         }
       }
 
