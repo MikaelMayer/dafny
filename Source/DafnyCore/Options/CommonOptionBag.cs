@@ -9,6 +9,16 @@ namespace Microsoft.Dafny;
 
 public class CommonOptionBag {
 
+  public static readonly Option<bool> ManualTriggerOption =
+    new("--manual-triggers", "Do not generate {:trigger} annotations for user-level quantifiers") {
+      IsHidden = true
+    };
+
+  public static readonly Option<bool> ShowInference =
+    new("--show-inference", () => false, "Show information about things Dafny inferred from your code, for example triggers.") {
+      IsHidden = true
+    };
+
   public enum AssertionShowMode { None, Implicit, All }
   public static readonly Option<AssertionShowMode> ShowAssertions = new("--show-assertions", () => AssertionShowMode.None,
     "Show hints on locations where implicit assertions occur");
@@ -214,17 +224,43 @@ May slow down verification slightly.
 May produce spurious warnings.") {
     IsHidden = true
   };
-  public static readonly Option<string> VerificationCoverageReport = new("--coverage-report",
-    "Emit verification coverage report  to a given directory, in the same format as a test coverage report.") {
+  public static readonly Option<string> VerificationCoverageReport = new("--verification-coverage-report",
+    "Emit verification coverage report to a given directory, in the same format as a test coverage report.") {
     ArgumentHelpName = "directory"
   };
   public static readonly Option<bool> NoTimeStampForCoverageReport = new("--no-timestamp-for-coverage-report",
     "Write coverage report directly to the specified folder instead of creating a timestamped subdirectory.") {
     IsHidden = true
   };
+  public static readonly Option<string> ExecutionCoverageReport = new("--coverage-report",
+    "Emit execution coverage report to a given directory.") {
+    ArgumentHelpName = "directory"
+  };
 
   public static readonly Option<bool> IncludeRuntimeOption = new("--include-runtime",
     "Include the Dafny runtime as source in the target language.");
+
+  /// <summary>
+  /// Copy of --include-runtime for execution commands like `dafny run`,
+  /// just so it can be internal only in that context:
+  /// it shouldn't matter to end users but is useful for testing.
+  /// </summary>
+  public static readonly Option<bool> InternalIncludeRuntimeOptionForExecution = new("--include-runtime", () => true,
+    "Include the Dafny runtime as source in the target language.") {
+    IsHidden = true
+  };
+
+  public enum SystemModuleMode {
+    Include,
+    Omit,
+    // Used to pre-compile the System module into the runtimes
+    OmitAllOtherModules
+  }
+
+  public static readonly Option<SystemModuleMode> SystemModule = new("--system-module", () => SystemModuleMode.Omit,
+    "How to handle the built-in _System module.") {
+    IsHidden = true
+  };
 
   public static readonly Option<bool> UseJavadocLikeDocstringRewriterOption = new("--javadoclike-docstring-plugin",
     "Rewrite docstrings using a simple Javadoc-to-markdown converter"
@@ -266,6 +302,14 @@ Not compatible with the --unicode-char:false option.
 ");
 
   static CommonOptionBag() {
+    DafnyOptions.RegisterLegacyBinding(ShowInference, (options, value) => {
+      options.PrintTooltips = value;
+    });
+
+    DafnyOptions.RegisterLegacyBinding(ManualTriggerOption, (options, value) => {
+      options.AutoTriggers = !value;
+    });
+
     DafnyOptions.RegisterLegacyUi(Target, DafnyOptions.ParseString, "Compilation options", "compileTarget", @"
 cs (default) - Compile to .NET via C#.
 go - Compile to Go.
@@ -305,12 +349,17 @@ full - (don't use; not yet completely supported) A trait is a reference type onl
     DafnyOptions.RegisterLegacyUi(NewTypeInferenceDebug, DafnyOptions.ParseBoolean, "Language feature selection", "ntitrace", @"
 0 (default) - Don't print debug information for the new type system.
 1 - Print debug information for the new type system.".TrimStart(), defaultValue: false);
+    DafnyOptions.RegisterLegacyUi(UseStandardLibraries, DafnyOptions.ParseBoolean, "Language feature selection", "standardLibraries", @"
+0 (default) - Do not allow Dafny code to depend on the standard libraries included with the Dafny distribution.
+1 - Allow Dafny code to depend on the standard libraries included with the Dafny distribution.
+See https://github.com/dafny-lang/dafny/blob/master/Source/DafnyStandardLibraries/README.md for more information.
+Not compatible with the /unicodeChar:0 option.".TrimStart(), defaultValue: false);
     DafnyOptions.RegisterLegacyUi(PluginOption, DafnyOptions.ParseStringElement, "Plugins", defaultValue: new List<string>());
     DafnyOptions.RegisterLegacyUi(Prelude, DafnyOptions.ParseFileInfo, "Input configuration", "dprelude");
 
     DafnyOptions.RegisterLegacyUi(Libraries, DafnyOptions.ParseFileInfoElement, "Compilation options", defaultValue: new List<FileInfo>());
     DafnyOptions.RegisterLegacyUi(DeveloperOptionBag.ResolvedPrint, DafnyOptions.ParseString, "Overall reporting and printing", "rprint");
-    DafnyOptions.RegisterLegacyUi(DeveloperOptionBag.Print, DafnyOptions.ParseString, "Overall reporting and printing", "dprint");
+    DafnyOptions.RegisterLegacyUi(DeveloperOptionBag.PrintOption, DafnyOptions.ParseString, "Overall reporting and printing", "dprint");
 
     DafnyOptions.RegisterLegacyUi(DafnyConsolePrinter.ShowSnippets, DafnyOptions.ParseBoolean, "Overall reporting and printing", "showSnippets", @"
 0 (default) - Don't show source code snippets for Dafny messages.
@@ -371,6 +420,8 @@ NoGhost - disable printing of functions, ghost methods, and proof
       }
     });
     DafnyOptions.RegisterLegacyBinding(IncludeRuntimeOption, (options, value) => { options.IncludeRuntime = value; });
+    DafnyOptions.RegisterLegacyBinding(InternalIncludeRuntimeOptionForExecution, (options, value) => { options.IncludeRuntime = value; });
+    DafnyOptions.RegisterLegacyBinding(SystemModule, (options, value) => { options.SystemModuleTranslationMode = value; });
     DafnyOptions.RegisterLegacyBinding(UseBaseFileName, (o, f) => o.UseBaseNameForFileName = f);
     DafnyOptions.RegisterLegacyBinding(UseJavadocLikeDocstringRewriterOption,
       (options, value) => { options.UseJavadocLikeDocstringRewriter = value; });
@@ -451,6 +502,8 @@ NoGhost - disable printing of functions, ghost methods, and proof
       }
     );
     DooFile.RegisterNoChecksNeeded(
+      ManualTriggerOption,
+      ShowInference,
       Check,
       Libraries,
       Output,
@@ -479,6 +532,7 @@ NoGhost - disable printing of functions, ghost methods, and proof
       WarnMissingConstructorParenthesis,
       UseJavadocLikeDocstringRewriterOption,
       IncludeRuntimeOption,
+      InternalIncludeRuntimeOptionForExecution,
       WarnContradictoryAssumptions,
       WarnRedundantAssumptions,
       VerificationCoverageReport,
@@ -486,7 +540,9 @@ NoGhost - disable printing of functions, ghost methods, and proof
       DefaultFunctionOpacity,
       UseStandardLibraries,
       OptimizeErasableDatatypeWrapper,
-      AddCompileSuffix
+      AddCompileSuffix,
+      SystemModule,
+      ExecutionCoverageReport
     );
   }
 

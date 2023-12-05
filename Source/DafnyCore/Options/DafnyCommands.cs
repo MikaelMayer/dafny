@@ -43,7 +43,9 @@ public static class DafnyCommands {
     CommonOptionBag.WarnContradictoryAssumptions,
     CommonOptionBag.WarnRedundantAssumptions,
     CommonOptionBag.NoTimeStampForCoverageReport,
-    CommonOptionBag.VerificationCoverageReport
+    CommonOptionBag.VerificationCoverageReport,
+    CommonOptionBag.ShowInference,
+    CommonOptionBag.ManualTriggerOption
   }.ToList();
 
   public static IReadOnlyList<Option> TranslationOptions = new Option[] {
@@ -52,17 +54,20 @@ public static class DafnyCommands {
     CommonOptionBag.OptimizeErasableDatatypeWrapper,
     CommonOptionBag.TestAssumptions,
     DeveloperOptionBag.Bootstrapping,
-    CommonOptionBag.AddCompileSuffix
+    CommonOptionBag.AddCompileSuffix,
+    CommonOptionBag.SystemModule
   }.Concat(VerificationOptions).ToList();
 
   public static IReadOnlyList<Option> ExecutionOptions = new Option[] {
     CommonOptionBag.Target,
-    CommonOptionBag.SpillTranslation
+    CommonOptionBag.SpillTranslation,
+    CommonOptionBag.InternalIncludeRuntimeOptionForExecution,
+    CommonOptionBag.ExecutionCoverageReport
   }.Concat(TranslationOptions).ToList();
 
   public static IReadOnlyList<Option> ConsoleOutputOptions = new List<Option>(new Option[] {
     DafnyConsolePrinter.ShowSnippets,
-    DeveloperOptionBag.Print,
+    DeveloperOptionBag.PrintOption,
     DeveloperOptionBag.ResolvedPrint,
     DeveloperOptionBag.BoogiePrint,
     Printer.PrintMode,

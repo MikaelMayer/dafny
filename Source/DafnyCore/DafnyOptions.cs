@@ -302,6 +302,7 @@ namespace Microsoft.Dafny {
     public IncludesModes PrintIncludesMode = IncludesModes.None;
     public int OptimizeResolution = 2;
     public bool IncludeRuntime = true;
+    public CommonOptionBag.SystemModuleMode SystemModuleTranslationMode = CommonOptionBag.SystemModuleMode.Omit;
     public bool UseJavadocLikeDocstringRewriter = false;
     public bool DisableScopes = false;
     public bool UseStdin = false;
@@ -1157,7 +1158,7 @@ namespace Microsoft.Dafny {
       // (or verified at all) using a different solver.
       SetZ3Option("smt.arith.solver", "2");
 
-      if (DisableNLarith || 3 <= ArithMode) {
+      if (3 <= ArithMode) {
         SetZ3Option("smt.arith.nl", "false");
       }
     }
