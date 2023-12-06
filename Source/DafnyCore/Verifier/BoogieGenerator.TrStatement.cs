@@ -1935,10 +1935,14 @@ namespace Microsoft.Dafny {
       }
       // Check that the modifies clause of a subcall is a subset of the current modifies frame,
       // but only if we're in a context that defines a modifies frame.
-      if (codeContext is IMethodCodeContext) {
-        var modifiesSubst = new Substituter(null, new Dictionary<IVariable, Expression>(), tySubst);
-        CheckFrameSubset(tok, callee.Mod.Expressions.ConvertAll(modifiesSubst.SubstFrameExpr),
-          receiver, substMap, etran, etran.ModifiesFrame(tok), builder, new PODesc.FrameSubset("call", true), null);
+      if (codeContext is IMethodCodeContext methodCodeContext) {
+        if (methodCodeContext is not Method { HasVolatileAttribute: true }) {
+          var modifiesSubst = new Substituter(null, new Dictionary<IVariable, Expression>(), tySubst);
+          CheckFrameSubset(tok, callee.Mod.Expressions.ConvertAll(modifiesSubst.SubstFrameExpr),
+            receiver, substMap, etran, etran.ModifiesFrame(tok), builder, new PODesc.FrameSubset("call", true), null);
+        } else {
+          reporter.Info(MessageSource.Compiler, receiver.tok, "Auto-lock of modifies and reads clause");
+        }
       }
 
       // Check termination
